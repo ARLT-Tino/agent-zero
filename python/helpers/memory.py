@@ -7,7 +7,6 @@ from langchain.embeddings import CacheBackedEmbeddings
 from langchain_community.vectorstores import FAISS
 
 # faiss needs to be patched for python 3.12 on arm #TODO remove once not needed
-from python.helpers import faiss_monkey_patch
 import faiss
 
 
@@ -15,9 +14,9 @@ from langchain_community.docstore.in_memory import InMemoryDocstore
 from langchain_community.vectorstores.utils import (
     DistanceStrategy,
 )
-from langchain_core.embeddings import Embeddings
 
-import os, json
+import os
+import json
 
 import numpy as np
 
@@ -26,7 +25,7 @@ from . import files
 from langchain_core.documents import Document
 import uuid
 from python.helpers import knowledge_import
-from python.helpers.log import Log, LogItem
+from python.helpers.log import LogItem
 from enum import Enum
 from agent import Agent
 import models
@@ -302,13 +301,23 @@ class Memory:
             model_config=self.agent.config.embeddings_model, input=query
         )
 
-        return await self.db.asearch(
-            query,
-            search_type="similarity_score_threshold",
-            k=limit,
-            score_threshold=threshold,
-            filter=comparator,
-        )
+        try:
+            return await self.db.asearch(
+                query,
+                search_type="similarity_score_threshold",
+                k=limit,
+                score_threshold=threshold,
+                filter=comparator,
+            )
+        except ValueError as e:
+            self.agent.context.log.log(
+                type="error",
+                heading="Memory search error - reloading index",
+                content=str(e),
+            )
+            new_mem = await Memory.reload(self.agent)
+            self.db = new_mem.db
+            return []
 
     async def delete_documents_by_query(
         self, query: str, threshold: float, filter: str = ""
@@ -394,7 +403,7 @@ class Memory:
         def comparator(data: dict[str, Any]):
             try:
                 return eval(condition, {}, data)
-            except Exception as e:
+            except Exception:
                 # PrintStyle.error(f"Error evaluating condition: {e}")
                 return False
 

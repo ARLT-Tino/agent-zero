@@ -2,7 +2,6 @@ from abc import abstractmethod
 import json
 import threading
 from typing import Union, TypedDict, Dict, Any
-from attr import dataclass
 from flask import Request, Response, jsonify, Flask, session, request
 from agent import AgentContext
 from initialize import initialize_agent
